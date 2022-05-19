@@ -11,6 +11,7 @@ digits_lower_values = dict([pair for pair in zip(digits_lower, range(36))])
 # Data IO methods
 ########################################################################################################################
 
+
 class Hybrid36:
     """
                    Prototype/reference implementation for
@@ -99,65 +100,81 @@ class Hybrid36:
     Retrieved From: https://github.com/cctbx/cctbx_project/blob/master/iotbx/pdb/hybrid_36.py
     On: August 7, 2019
     """
+
     def __encode_pure(digits, value):
-      "encodes value using the given digits"
-      assert value >= 0
-      if (value == 0): return digits[0]
-      n = len(digits)
-      result = []
-      while (value != 0):
-        rest = value // n
-        result.append(digits[value - rest * n])
-        value = rest
-      result.reverse()
-      return "".join(result)
+        "encodes value using the given digits"
+        assert value >= 0
+        if value == 0:
+            return digits[0]
+        n = len(digits)
+        result = []
+        while value != 0:
+            rest = value // n
+            result.append(digits[value - rest * n])
+            value = rest
+        result.reverse()
+        return "".join(result)
 
     def __decode_pure(digits_values, s):
-      "decodes the string s using the digit, value associations for each character"
-      result = 0
-      n = len(digits_values)
-      for c in s:
-        result *= n
-        result += digits_values[c]
-      return result
+        "decodes the string s using the digit, value associations for each character"
+        result = 0
+        n = len(digits_values)
+        for c in s:
+            result *= n
+            result += digits_values[c]
+        return result
 
     def hy36encode(width, value):
-      "encodes value as base-10/upper-case base-36/lower-case base-36 hybrid"
-      i = value
-      if (i >= 1-10**(width-1)):
-        if (i < 10**width):
-          return ("%%%dd" % width) % i
-        i -= 10**width
-        if (i < 26*36**(width-1)):
-          i += 10*36**(width-1)
-          return Hybrid36.__encode_pure(digits_upper, i)
-        i -= 26*36**(width-1)
-        if (i < 26*36**(width-1)):
-          i += 10*36**(width-1)
-          return Hybrid36.__encode_pure(digits_lower, i)
-      raise ValueError("value out of range.")
+        "encodes value as base-10/upper-case base-36/lower-case base-36 hybrid"
+        i = value
+        if i >= 1 - 10 ** (width - 1):
+            if i < 10**width:
+                return ("%%%dd" % width) % i
+            i -= 10**width
+            if i < 26 * 36 ** (width - 1):
+                i += 10 * 36 ** (width - 1)
+                return Hybrid36.__encode_pure(digits_upper, i)
+            i -= 26 * 36 ** (width - 1)
+            if i < 26 * 36 ** (width - 1):
+                i += 10 * 36 ** (width - 1)
+                return Hybrid36.__encode_pure(digits_lower, i)
+        raise ValueError("value out of range.")
 
     def hy36decode(width, s):
-      "decodes base-10/upper-case base-36/lower-case base-36 hybrid"
-      if (len(s) == width):
-        f = s[0]
-        if (f == "-" or f == " " or f.isdigit()):
-          try: return int(s)
-          except ValueError: pass
-          if (s == " "*width): return 0
-        elif (f in digits_upper_values):
-          try: return Hybrid36.__decode_pure(
-            digits_values=digits_upper_values, s=s) - 10*36**(width-1) + 10**width
-          except KeyError: pass
-        elif (f in digits_lower_values):
-          try: return Hybrid36.__decode_pure(
-            digits_values=digits_lower_values, s=s) + 16*36**(width-1) + 10**width
-          except KeyError: pass
-      raise ValueError("invalid number literal.")
+        "decodes base-10/upper-case base-36/lower-case base-36 hybrid"
+        if len(s) == width:
+            f = s[0]
+            if f == "-" or f == " " or f.isdigit():
+                try:
+                    return int(s)
+                except ValueError:
+                    pass
+                if s == " " * width:
+                    return 0
+            elif f in digits_upper_values:
+                try:
+                    return (
+                        Hybrid36.__decode_pure(digits_values=digits_upper_values, s=s)
+                        - 10 * 36 ** (width - 1)
+                        + 10**width
+                    )
+                except KeyError:
+                    pass
+            elif f in digits_lower_values:
+                try:
+                    return (
+                        Hybrid36.__decode_pure(digits_values=digits_lower_values, s=s)
+                        + 16 * 36 ** (width - 1)
+                        + 10**width
+                    )
+                except KeyError:
+                    pass
+        raise ValueError("invalid number literal.")
 
 
 class Chain:
     """Tracks nodes, sheets, and helices for a certain chain"""
+
     def __init__(self):
         self.nodes = []
         self.sheets = []
@@ -186,23 +203,22 @@ class PDB_Reader_Writer:
         chains = [Chain()]
         with open(pdb_name) as pdb_file:
             for line in pdb_file:
-                if 'TER' in line:
+                if "TER" in line:
                     chains.append(Chain())
                 try:
-                    if line[:4] == 'ATOM':
+                    if line[:4] == "ATOM":
                         data = self.__parse_node(line)
                         chains[-1].nodes.append(data)
-                    elif line[:5] == 'HELIX':
+                    elif line[:5] == "HELIX":
                         data, i = self.__parse_helix(line, chains)
                         chains[i].helices.append(data)
-                    elif line[:5] == 'SHEET':
+                    elif line[:5] == "SHEET":
                         data, i = self.__parse_sheet(line, chains)
                         chains[i].sheets.append(data)
                 except ValueError as error:
-                    print('Error parsing ' + line + str(error))
+                    print("Error parsing " + line + str(error))
 
         return chains
-
 
     def write_pdb(self, chains, file_name):
         """Writes nodes and secondary structure info to pdb file with given name"""
@@ -213,71 +229,85 @@ class PDB_Reader_Writer:
         offset = 0
         for chain in chains:
             for i in range(len(chain.nodes)):
-                nodes_str.append(self.__format_node(chain.nodes[i], 'A', offset + i + 1))
-            nodes_str.append('TER\n')
+                nodes_str.append(
+                    self.__format_node(chain.nodes[i], "A", offset + i + 1)
+                )
+            nodes_str.append("TER\n")
 
             for helix_start, helix_end in chain.helices:
-                helices_str.append(self.__format_helix_info('A', helix_start + offset, helix_end + offset))
+                helices_str.append(
+                    self.__format_helix_info(
+                        "A", helix_start + offset, helix_end + offset
+                    )
+                )
 
             for sheet_start, sheet_end in chain.sheets:
-                sheets_str.append(self.__format_sheet_info('A', sheet_start + offset, sheet_end + offset))
+                sheets_str.append(
+                    self.__format_sheet_info(
+                        "A", sheet_start + offset, sheet_end + offset
+                    )
+                )
 
             offset += len(chain.nodes) + 1
 
-        with open(file_name, 'w') as pdb_file:
-            pdb_file.write(''.join(nodes_str))
-            pdb_file.write(''.join(helices_str))
-            pdb_file.write(''.join(sheets_str))
-
+        with open(file_name, "w") as pdb_file:
+            pdb_file.write("".join(nodes_str))
+            pdb_file.write("".join(helices_str))
+            pdb_file.write("".join(sheets_str))
 
     @staticmethod
-    def write_single_pdb(file, type='ATOM', chain='A', node=np.array([0,0,0]), seqnum=0, node_from=0, node_to=0):
+    def write_single_pdb(
+        file,
+        type="ATOM",
+        chain="A",
+        node=np.array([0, 0, 0]),
+        seqnum=0,
+        node_from=0,
+        node_to=0,
+    ):
         """Given a file writes ATOM, HELIX, or SHEET upon specification"""
-        if type == 'ATOM':
+        if type == "ATOM":
             file.write(PDB_Reader_Writer.__format_node(node, chain, seqnum))
-        elif type == 'HELIX':
+        elif type == "HELIX":
             file.write(PDB_Reader_Writer.__format_helix_info(chain, node_from, node_to))
             pass
-        elif type == 'SHEET':
+        elif type == "SHEET":
             file.write(PDB_Reader_Writer.__format_sheet_info(chain, node_from, node_to))
             pass
-        elif type == 'TER':
-            file.write('TER\n')
-
+        elif type == "TER":
+            file.write("TER\n")
 
     @staticmethod
-    def read_single_pdb_line(type='ATOM', line=''):
+    def read_single_pdb_line(type="ATOM", line=""):
         """Given a file reads ATOM, HELIX, or SHEET upon specification"""
-        if type == 'ATOM':
+        if type == "ATOM":
             return PDB_Reader_Writer.__parse_node(line)
-        elif type == 'ATOM INDEX':
+        elif type == "ATOM INDEX":
             return PDB_Reader_Writer.__parse_nodes_index(line)
-        elif type == 'HELIX':
+        elif type == "HELIX":
             return PDB_Reader_Writer.__parse_helix_info(line)
-        elif type == 'SHEET':
+        elif type == "SHEET":
             return PDB_Reader_Writer.__format_sheet_info
-
 
     @staticmethod
     def __parse_nodes_index(line):
         """Parse node's index from given 'line'"""
         return int(Hybrid36.hy36decode(4, line[22:26]))
 
-
     @staticmethod
     def __parse_node(line):
         """Parses node data from given 'line'"""
-        return np.array([float(line[30:38]),
-                         float(line[38:46]),
-                         float(line[46:54])])
-
+        return np.array([float(line[30:38]), float(line[38:46]), float(line[46:54])])
 
     @staticmethod
     def __parse_helix(line, chains):
         """Parses helix data from given 'line' and calculates chain index 'i' from
         'chains'"""
         i = 0
-        data = [Hybrid36.hy36decode(4, line[21:25]) - 1, Hybrid36.hy36decode(4, line[33:37]) - 1]
+        data = [
+            Hybrid36.hy36decode(4, line[21:25]) - 1,
+            Hybrid36.hy36decode(4, line[33:37]) - 1,
+        ]
         for chain in chains:
             if data[1] <= len(chain.nodes):
                 break
@@ -288,13 +318,15 @@ class PDB_Reader_Writer:
 
         return data, i
 
-
     @staticmethod
     def __parse_sheet(line, chains):
         """Parses sheet data from given 'line' and calculates chain index 'i' from
         'chains'"""
         i = 0
-        data = [Hybrid36.hy36decode(4, line[22:26]) - 1, Hybrid36.hy36decode(4, line[33:37]) - 1]
+        data = [
+            Hybrid36.hy36decode(4, line[22:26]) - 1,
+            Hybrid36.hy36decode(4, line[33:37]) - 1,
+        ]
         for chain in chains:
             if data[1] < len(chain.nodes):
                 break
@@ -305,40 +337,44 @@ class PDB_Reader_Writer:
 
         return data, i
 
-
     @staticmethod
     def __format_node(node, chain, n):
         """Encodes node to str in PDB format"""
-        return \
-            'ATOM      1  CA  GLY ' + \
-            chain + \
-            Hybrid36.hy36encode(4, n).rjust(4) + '    ' + \
-            '{0:.3f}'.format(node[0]).rjust(8) + \
-            '{0:.3f}'.format(node[1]).rjust(8) + \
-            '{0:.3f}'.format(node[2]).rjust(8) + \
-            '  1.00  0.00           C  \n'
-
+        return (
+            "ATOM      1  CA  GLY "
+            + chain
+            + Hybrid36.hy36encode(4, n).rjust(4)
+            + "    "
+            + "{0:.3f}".format(node[0]).rjust(8)
+            + "{0:.3f}".format(node[1]).rjust(8)
+            + "{0:.3f}".format(node[2]).rjust(8)
+            + "  1.00  0.00           C  \n"
+        )
 
     @staticmethod
     def __format_helix_info(chain, node_from, node_to):
         """Encodes helix info to str in PDB format"""
-        return \
-            'HELIX    1   1 GLY ' + \
-            chain + ' ' + \
-            Hybrid36.hy36encode(4, int(node_from) + 1).rjust(4) + '  GLY ' + \
-            chain + ' ' + \
-            Hybrid36.hy36encode(4, int(node_to) + 1).rjust(4) + '  1\n'
-
+        return (
+            "HELIX    1   1 GLY "
+            + chain
+            + " "
+            + Hybrid36.hy36encode(4, int(node_from) + 1).rjust(4)
+            + "  GLY "
+            + chain
+            + " "
+            + Hybrid36.hy36encode(4, int(node_to) + 1).rjust(4)
+            + "  1\n"
+        )
 
     @staticmethod
     def __format_sheet_info(chain, node_from, node_to):
         """Encodes sheet info to str in PDB format"""
-        return \
-            'SHEET    1   A 6 GLY ' + \
-            chain + \
-            Hybrid36.hy36encode(4, int(node_from) + 1).rjust(4) + '  GLY ' + \
-            chain + \
-            Hybrid36.hy36encode(4, int(node_to) + 1).rjust(4) + '  0\n'
-
-
-
+        return (
+            "SHEET    1   A 6 GLY "
+            + chain
+            + Hybrid36.hy36encode(4, int(node_from) + 1).rjust(4)
+            + "  GLY "
+            + chain
+            + Hybrid36.hy36encode(4, int(node_to) + 1).rjust(4)
+            + "  0\n"
+        )

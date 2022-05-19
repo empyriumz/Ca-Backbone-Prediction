@@ -21,11 +21,11 @@ import mrcfile
 from copy import deepcopy
 import numpy as np
 
-__author__ = 'Jonas Pfab'
+__author__ = "Jonas Pfab"
 
 
 def update_paths(paths):
-    paths['threshold'] = paths['output'] + 'threshold'
+    paths["threshold"] = paths["output"] + "threshold"
 
 
 def execute(paths):
@@ -33,20 +33,24 @@ def execute(paths):
     level was provided by the user"""
     if is_threshold_provided(paths):
         return
-    map_data = deepcopy(mrcfile.open(paths['cleaned_map'], mode='r').data).ravel()
+    map_data = deepcopy(mrcfile.open(paths["cleaned_map"], mode="r").data).ravel()
     num_non_zero_values = count_values(map_data, 0)
 
     # Find threshold value such that the surface area to volume ratio is 0.9
-    threshold1 = root_scalar(lambda t: 0.9163020188305991 - sav(t, paths),
-                             bracket=[0, 10]).root
+    threshold1 = root_scalar(
+        lambda t: 0.9163020188305991 - sav(t, paths), bracket=[0, 10]
+    ).root
     # Finding threshold value such that the ratio of number of values larger
     # than the threshold to number of non-zero values is 0.4
-    threshold2 = root_scalar(lambda t: 0.4640027954434909 - (count_values(map_data, t) / num_non_zero_values),
-                             bracket=[0, 10]).root
+    threshold2 = root_scalar(
+        lambda t: 0.4640027954434909
+        - (count_values(map_data, t) / num_non_zero_values),
+        bracket=[0, 10],
+    ).root
 
     threshold = (threshold1 + threshold2) / 2
 
-    with open(paths['threshold'], 'w') as f:
+    with open(paths["threshold"], "w") as f:
         f.write(str(threshold))
 
 
@@ -85,39 +89,43 @@ def sav(threshold, paths):
     sav: float
         Surface area to volume ratio
     """
-    chimera_script = open(paths['output'] + 'measure.cmd', 'w')
-    chimera_script.write('open ' + paths['cleaned_map'] + '\n'
-                         'volume #0 level ' + str(threshold) + '\n'
-                         'measure volume #0\n'
-                         'measure area #0\n')
+    chimera_script = open(paths["output"] + "measure.cmd", "w")
+    chimera_script.write(
+        "open " + paths["cleaned_map"] + "\n"
+        "volume #0 level " + str(threshold) + "\n"
+        "measure volume #0\n"
+        "measure area #0\n"
+    )
     chimera_script.close()
 
-    output = subprocess.check_output([paths['chimera_path'], '--nogui', chimera_script.name])
+    output = subprocess.check_output(
+        [paths["chimera_path"], "--nogui", chimera_script.name]
+    )
     volume, surface_area = parse_sav(output)
 
     os.remove(chimera_script.name)
 
-    return float('inf') if volume == 0 else surface_area / volume
+    return float("inf") if volume == 0 else surface_area / volume
 
 
 def parse_sav(output):
     """Parses surface area to volume ratio from given chimera output"""
     volume, area = None, None
-    lines = str(output).split('\\n')
+    lines = str(output).split("\\n")
     for line in lines:
-        if 'area' in line and area is None:
-            area = float(line.split(' = ')[-1])
-        elif 'volume' in line and volume is None:
-            volume = float(line.split(' = ')[-1])
+        if "area" in line and area is None:
+            area = float(line.split(" = ")[-1])
+        elif "volume" in line and volume is None:
+            volume = float(line.split(" = ")[-1])
 
     return volume, area
 
 
 def is_threshold_provided(paths):
     """Checks if threshold value is already provided by user"""
-    if 'thresholds_file' in paths:
-        emdb_id = paths['input'].split('/')[-2]
-        with open(paths['thresholds_file']) as f:
+    if "thresholds_file" in paths:
+        emdb_id = paths["input"].split("/")[-2]
+        with open(paths["thresholds_file"]) as f:
             thresholds = json.load(f)
 
         if emdb_id in thresholds:

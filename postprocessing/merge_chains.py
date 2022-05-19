@@ -3,20 +3,23 @@ from .pdb_reader_writer import PDB_Reader_Writer
 
 
 def update_paths(paths):
-    paths['fragments_merged'] = paths['output'] + 'fragments_merged.pdb'
+    paths["fragments_merged"] = paths["output"] + "fragments_merged.pdb"
 
 
 def execute(paths):
     reader_writer = PDB_Reader_Writer()
-    chains = [c for c in reader_writer.read_pdb(paths['duplicates_removed']) if len(c.nodes) > 0]
+    chains = [
+        c
+        for c in reader_writer.read_pdb(paths["duplicates_removed"])
+        if len(c.nodes) > 0
+    ]
     while merge_closest_chains(chains):
         pass
 
-    reader_writer.write_pdb(chains, paths['fragments_merged'])
+    reader_writer.write_pdb(chains, paths["fragments_merged"])
 
 
 class PossibleConnection:
-
     def __init__(self, chain1, chain2, i1, i2):
         self.chain1 = chain1
         self.chain2 = chain2
@@ -34,17 +37,21 @@ def merge_closest_chains(chains):
                 PossibleConnection(chain1, chain2, 0, 0),
                 PossibleConnection(chain1, chain2, 0, last_i2),
                 PossibleConnection(chain1, chain2, last_i1, 0),
-                PossibleConnection(chain1, chain2, last_i1, last_i2)
+                PossibleConnection(chain1, chain2, last_i1, last_i2),
             ]
 
     possible_connections.sort(key=lambda p: p.distance)
-    possible_connections = list(filter(lambda p: p.distance > 3.2, possible_connections))
+    possible_connections = list(
+        filter(lambda p: p.distance > 3.2, possible_connections)
+    )
     if len(possible_connections) > 0 and possible_connections[0].distance < 10:
-        merge_chains(chains,
-                     possible_connections[0].chain1,
-                     possible_connections[0].chain2,
-                     possible_connections[0].i1,
-                     possible_connections[0].i2)
+        merge_chains(
+            chains,
+            possible_connections[0].chain1,
+            possible_connections[0].chain2,
+            possible_connections[0].i1,
+            possible_connections[0].i2,
+        )
 
         return True
     else:
@@ -53,8 +60,12 @@ def merge_closest_chains(chains):
 
 def merge_chains(chains, chain1, chain2, at1, at2):
     if at1 == 0 and at2 == 0:
-        chain1.helices = reverse_indices(chain2.helices, chain2.nodes) + add_offset(chain1.helices, len(chain2.nodes))
-        chain1.sheets = reverse_indices(chain2.sheets, chain2.nodes) + add_offset(chain1.sheets, len(chain2.nodes))
+        chain1.helices = reverse_indices(chain2.helices, chain2.nodes) + add_offset(
+            chain1.helices, len(chain2.nodes)
+        )
+        chain1.sheets = reverse_indices(chain2.sheets, chain2.nodes) + add_offset(
+            chain1.sheets, len(chain2.nodes)
+        )
         chain1.nodes = chain2.nodes[::-1] + chain1.nodes
         chains.remove(chain2)
     elif at1 == 0:
@@ -68,8 +79,12 @@ def merge_chains(chains, chain1, chain2, at1, at2):
         chain1.nodes += chain2.nodes
         chains.remove(chain2)
     else:
-        chain1.helices += add_offset(reverse_indices(chain2.helices, chain2.nodes), len(chain1.nodes))
-        chain1.sheets += add_offset(reverse_indices(chain2.sheets, chain2.nodes), len(chain1.nodes))
+        chain1.helices += add_offset(
+            reverse_indices(chain2.helices, chain2.nodes), len(chain1.nodes)
+        )
+        chain1.sheets += add_offset(
+            reverse_indices(chain2.sheets, chain2.nodes), len(chain1.nodes)
+        )
         chains.remove(chain2)
         chain1.nodes += chain2.nodes[::-1]
 

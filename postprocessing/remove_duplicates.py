@@ -4,20 +4,20 @@ from .pdb_reader_writer import PDB_Reader_Writer
 
 
 def update_paths(paths):
-    paths['duplicates_removed'] = paths['output'] + 'duplicates_removed.pdb'
+    paths["duplicates_removed"] = paths["output"] + "duplicates_removed.pdb"
 
 
 def execute(paths):
     reader_writer = PDB_Reader_Writer()
-    chains = reader_writer.read_pdb(paths['traces_refined'])
+    chains = reader_writer.read_pdb(paths["traces_refined"])
     remove_duplicates(chains)
-    reader_writer.write_pdb(chains, paths['duplicates_removed'])
+    reader_writer.write_pdb(chains, paths["duplicates_removed"])
 
 
 def remove_duplicates(chains):
     for i in range(len(chains)):
         chain = chains[i]
-        for other_chain in (chains[0:i] + chains[i + 1:]):
+        for other_chain in chains[0:i] + chains[i + 1 :]:
             for j, k in [(0, 0), (0, -1), (-1, 0), (-1, -1)]:
                 if not chain.nodes or not other_chain.nodes:
                     continue

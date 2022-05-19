@@ -15,32 +15,34 @@ import math
 from collections import deque
 from .pdb_reader_writer import PDB_Reader_Writer
 
-__author__ = 'Spencer Moritz'
+__author__ = "Spencer Moritz"
 
 
 def update_paths(paths):
-    paths['first_confidence_walk'] = paths['output'] + 'first_confidence_walk.pdb'
-    paths['second_confidence_walk'] = paths['output'] + 'second_confidence_walk.pdb'
-    paths['refined_backbone'] = paths['output'] + 'refined_backbone.mrc'
-    paths['final_ca_prediction'] = paths['output'] + 'final_ca_prediction.pdb'
-    paths['traces'] = paths['output'] + 'traces.pdb'
+    paths["first_confidence_walk"] = paths["output"] + "first_confidence_walk.pdb"
+    paths["second_confidence_walk"] = paths["output"] + "second_confidence_walk.pdb"
+    paths["refined_backbone"] = paths["output"] + "refined_backbone.mrc"
+    paths["final_ca_prediction"] = paths["output"] + "final_ca_prediction.pdb"
+    paths["traces"] = paths["output"] + "traces.pdb"
 
 
 def execute(paths):
     # Open up the required files.
-    normalized_map = mrcfile.open(paths['normalized_map'], mode='r')
-    ca_image = mrcfile.open(paths['ca_confidence'], mode='r').data
-    helix_image = mrcfile.open(paths['helix_confidence'], mode='r').data
-    sheet_image = mrcfile.open(paths['sheet_confidence'], mode='r').data
-    backbone_image = mrcfile.open(paths['backbone_confidence'], mode='r').data
+    normalized_map = mrcfile.open(paths["normalized_map"], mode="r")
+    ca_image = mrcfile.open(paths["ca_confidence"], mode="r").data
+    helix_image = mrcfile.open(paths["helix_confidence"], mode="r").data
+    sheet_image = mrcfile.open(paths["sheet_confidence"], mode="r").data
+    backbone_image = mrcfile.open(paths["backbone_confidence"], mode="r").data
     origin = normalized_map.header.origin.item(0)
 
     # This is the major Post-Processing step where the full backbone trace is
     # built. This may take a few minutes to execute.
-    confidence_walk(deepcopy(ca_image), origin, backbone_image, paths['first_confidence_walk'])
+    confidence_walk(
+        deepcopy(ca_image), origin, backbone_image, paths["first_confidence_walk"]
+    )
 
     # Build graph and then clean it to improve final output.
-    graph = make_graph(paths['first_confidence_walk'])
+    graph = make_graph(paths["first_confidence_walk"])
     graph.edge_check()
     graph.remove_side_chains()
     graph.remove_loops(ca_image, origin)
@@ -52,16 +54,18 @@ def execute(paths):
     graph.remove_empty_nodes()
 
     new_backbone = graph.refine_backbone(backbone_image, origin)
-    with mrcfile.new(paths['refined_backbone'], overwrite=True) as mrc:
+    with mrcfile.new(paths["refined_backbone"], overwrite=True) as mrc:
         mrc.set_data(new_backbone)
         mrc.header.origin = normalized_map.header.origin.item(0)
         mrc.update_header_stats()
         mrc.close()
 
-    confidence_walk(deepcopy(ca_image), origin, new_backbone, paths['second_confidence_walk'])
+    confidence_walk(
+        deepcopy(ca_image), origin, new_backbone, paths["second_confidence_walk"]
+    )
 
     # Build graph and then clean it to improve final output.
-    graph = make_graph(paths['second_confidence_walk'])
+    graph = make_graph(paths["second_confidence_walk"])
     graph.edge_check()
     graph.remove_side_chains()
     graph.remove_loops(ca_image, origin)
@@ -74,12 +78,12 @@ def execute(paths):
     graph.remove_empty_nodes()
 
     # Now print the final graphs to output
-    graph.print_graph(paths['final_ca_prediction'])
-    graph.print_traces(sheet_image, helix_image, origin, paths['traces'])
+    graph.print_graph(paths["final_ca_prediction"])
+    graph.print_traces(sheet_image, helix_image, origin, paths["traces"])
 
 
 def confidence_walk(prediction_image, offset, backbone_image, output_file):
-    """ It produces a series of traces representative of the protein's backbone
+    """It produces a series of traces representative of the protein's backbone
     structure
 
     This is the main function used for the path-walking.
@@ -105,11 +109,13 @@ def confidence_walk(prediction_image, offset, backbone_image, output_file):
         update_confidence_image(prediction_image, num_ca_edges_hash, location)
 
         # Find and update for the neighbor
-        neighbor = find_nearest_ca(location, backbone_image, set_of_ca_sets, untouched_prediction)
+        neighbor = find_nearest_ca(
+            location, backbone_image, set_of_ca_sets, untouched_prediction
+        )
         if neighbor is not None:
             update_confidence_image(prediction_image, num_ca_edges_hash, neighbor)
             update_ca_sets(set_of_ca_sets, location, neighbor)
-            print('Placed Edge: ' + str(index + 1))
+            print("Placed Edge: " + str(index + 1))
 
         if index % 10 == 0:
             print_ca_sets(set_of_ca_sets, offset, output_file)
@@ -149,7 +155,9 @@ def find_highest_confidence_ca(remaining_image, set_of_ca_sets):
     for ca_set in set_of_ca_sets:
         for index in range(len(ca_set)):
             if index == 0 or index == len(ca_set) - 1:
-                value = remaining_image[ca_set[index][0], ca_set[index][1], ca_set[index][2]]
+                value = remaining_image[
+                    ca_set[index][0], ca_set[index][1], ca_set[index][2]
+                ]
                 if value > max_value:
                     max_value = value
                     max_location = ca_set[index]
@@ -159,8 +167,12 @@ def find_highest_confidence_ca(remaining_image, set_of_ca_sets):
         argmax = np.argmax(remaining_image)
         location = [0] * 3
         location[0] = int(argmax / (box_size[1] * box_size[2]))
-        location[1] = int((argmax - location[0] * box_size[1] * box_size[2]) / box_size[2])
-        location[2] = int(argmax - location[0] * box_size[1] * box_size[2] - location[1] * box_size[2])
+        location[1] = int(
+            (argmax - location[0] * box_size[1] * box_size[2]) / box_size[2]
+        )
+        location[2] = int(
+            argmax - location[0] * box_size[1] * box_size[2] - location[1] * box_size[2]
+        )
         max_location = location
         # Quitting Condition
         if remaining_image[max_location[0], max_location[1], max_location[2]] <= 8:
@@ -189,9 +201,16 @@ def zero_out_sphere(remaining_image, location, level):
     for x in range(-sphere_radius + location[0], sphere_radius + location[0]):
         for y in range(-sphere_radius + location[1], sphere_radius + location[1]):
             for z in range(-sphere_radius + location[2], sphere_radius + location[2]):
-                if (0 <= x < box_size[0] and 0 <= y < box_size[1] and 0 <= z < box_size[2] and
-                        distance(location[2], z, location[1], y, location[0], x) < sphere_radius):
-                    if level == 2 or not (x == location[0] and y == location[1] and z == location[2]):
+                if (
+                    0 <= x < box_size[0]
+                    and 0 <= y < box_size[1]
+                    and 0 <= z < box_size[2]
+                    and distance(location[2], z, location[1], y, location[0], x)
+                    < sphere_radius
+                ):
+                    if level == 2 or not (
+                        x == location[0] and y == location[1] and z == location[2]
+                    ):
                         remaining_image[x][y][z] = 0
 
 
@@ -204,7 +223,9 @@ def distance(z1, z2, y1, y2, x1, x2):
     return math.sqrt(sum_squares)
 
 
-def find_nearest_ca(previous_location, backbone_image, set_of_ca_sets, untouched_prediction):
+def find_nearest_ca(
+    previous_location, backbone_image, set_of_ca_sets, untouched_prediction
+):
     """This method finds the best possible neighboring Ca-atom
 
     The first part of the function generates all locations within the
@@ -224,13 +245,33 @@ def find_nearest_ca(previous_location, backbone_image, set_of_ca_sets, untouched
     possible_set = list()
     # Loop through neighboring voxels looking for locations that might be
     # suitable.
-    for x in range(-sphere_radius + previous_location[0], sphere_radius + previous_location[0]):
-        for y in range(-sphere_radius + previous_location[1], sphere_radius + previous_location[1]):
-            for z in range(-sphere_radius + previous_location[2], sphere_radius + previous_location[2]):
-                if (0 <= x < box_size[0] and 0 <= y < box_size[1] and 0 <= z < box_size[2] and
-                        max_ca_distance >= distance(z, previous_location[2], y, previous_location[1], x,
-                                                    previous_location[0]) >= min_ca_distance and
-                        not already_placed([x, y, z], invalid_ca_spots) and untouched_prediction[x][y][z] > 0):
+    for x in range(
+        -sphere_radius + previous_location[0], sphere_radius + previous_location[0]
+    ):
+        for y in range(
+            -sphere_radius + previous_location[1], sphere_radius + previous_location[1]
+        ):
+            for z in range(
+                -sphere_radius + previous_location[2],
+                sphere_radius + previous_location[2],
+            ):
+                if (
+                    0 <= x < box_size[0]
+                    and 0 <= y < box_size[1]
+                    and 0 <= z < box_size[2]
+                    and max_ca_distance
+                    >= distance(
+                        z,
+                        previous_location[2],
+                        y,
+                        previous_location[1],
+                        x,
+                        previous_location[0],
+                    )
+                    >= min_ca_distance
+                    and not already_placed([x, y, z], invalid_ca_spots)
+                    and untouched_prediction[x][y][z] > 0
+                ):
                     possible_set.append([x, y, z])
     if len(possible_set) == 0:
         return None
@@ -238,10 +279,14 @@ def find_nearest_ca(previous_location, backbone_image, set_of_ca_sets, untouched
 
     dictionary = {}
     for coordinate in possible_set:
-        voids, density = cylindrical_density(coordinate, previous_location, backbone_image, untouched_prediction)
+        voids, density = cylindrical_density(
+            coordinate, previous_location, backbone_image, untouched_prediction
+        )
         angle = find_angle2(set_of_ca_sets, previous_location, coordinate)
         score = density
-        if (bfs_distance_image[coordinate[0], coordinate[1], coordinate[2]] < 100) and angle > 70:
+        if (
+            bfs_distance_image[coordinate[0], coordinate[1], coordinate[2]] < 100
+        ) and angle > 70:
             dictionary[score] = [coordinate[0], coordinate[1], coordinate[2]]
     key_list = dictionary.keys()
     sorted_key_list = list(sorted(key_list, reverse=True))
@@ -291,7 +336,10 @@ def already_placed(location, invalid_ca_spots):
     prediction image"""
     sphere_radius = 3
     for ca in invalid_ca_spots:
-        if distance(location[2], ca[2], location[1], ca[1], location[0], ca[0]) < sphere_radius:
+        if (
+            distance(location[2], ca[2], location[1], ca[1], location[0], ca[0])
+            < sphere_radius
+        ):
             return True
     return False
 
@@ -318,7 +366,11 @@ def distance_between_bfs(position, input_image):
             x = cur_position[0] + offsets[index][0]
             y = cur_position[1] + offsets[index][1]
             z = cur_position[2] + offsets[index][2]
-            if x < len(input_image) and y < len(input_image[0]) and z < len(input_image[0][0]):
+            if (
+                x < len(input_image)
+                and y < len(input_image[0])
+                and z < len(input_image[0][0])
+            ):
                 if input_image[x][y][z] > 0 and visited[x][y][z] == 0:
                     position_queue.append([x, y, z])
                     distance_queue.append(cur_distance + 1)
@@ -344,15 +396,32 @@ def cylindrical_density(ca_1, ca_2, input_image, untouched_prediction):
     y_step = (ca_2[1] - ca_1[1]) / steps
     z_step = (ca_2[2] - ca_1[2]) / steps
     for index in range(steps + 1):
-        midpoints.append([ca_1[0] + x_step * index, ca_1[1] + y_step * index, ca_1[2] + z_step * index])
+        midpoints.append(
+            [
+                ca_1[0] + x_step * index,
+                ca_1[1] + y_step * index,
+                ca_1[2] + z_step * index,
+            ]
+        )
     for z in range(int(ca_1[2]) - 4, int(ca_1[2]) + 4):  # 4 is kinda arbitrary here
         for y in range(int(ca_1[1]) - 4, int(ca_1[1]) + 4):
             for x in range(int(ca_1[0]) - 4, int(ca_1[0]) + 4):
                 placed = False
                 for index in range(len(midpoints)):
-                    if (0 <= z < box_size[2] and box_size[1] > y >= 0 <= x < box_size[0] and
-                            distance(z, midpoints[index][2], y, midpoints[index][1], x, midpoints[index][0]) <= 1
-                            and not placed):
+                    if (
+                        0 <= z < box_size[2]
+                        and box_size[1] > y >= 0 <= x < box_size[0]
+                        and distance(
+                            z,
+                            midpoints[index][2],
+                            y,
+                            midpoints[index][1],
+                            x,
+                            midpoints[index][0],
+                        )
+                        <= 1
+                        and not placed
+                    ):
                         placed = True
                         total_density += untouched_prediction[x][y][z]
                         number_of_points += 1
@@ -368,9 +437,21 @@ def find_angle2(set_of_ca_sets, old_location, new_location):
         for index in range(len(ca_set)):
             if np.array_equal(ca_set[index], old_location):
                 if index + 1 < len(ca_set):
-                    a = np.array([ca_set[index + 1][0], ca_set[index + 1][1], ca_set[index + 1][2]])
+                    a = np.array(
+                        [
+                            ca_set[index + 1][0],
+                            ca_set[index + 1][1],
+                            ca_set[index + 1][2],
+                        ]
+                    )
                 elif index > 0:
-                    a = np.array([ca_set[index - 1][0], ca_set[index - 1][1], ca_set[index - 1][2]])
+                    a = np.array(
+                        [
+                            ca_set[index - 1][0],
+                            ca_set[index - 1][1],
+                            ca_set[index - 1][2],
+                        ]
+                    )
                 else:
                     return 180
                 b = np.array([old_location[0], old_location[1], old_location[2]])
@@ -378,7 +459,9 @@ def find_angle2(set_of_ca_sets, old_location, new_location):
                 ba = a - b
                 bc = c - b
 
-                cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+                cosine_angle = np.dot(ba, bc) / (
+                    np.linalg.norm(ba) * np.linalg.norm(bc)
+                )
                 angle = np.arccos(cosine_angle)
 
                 return np.degrees(angle)
@@ -417,9 +500,21 @@ def print_ca_sets(set_of_ca_sets, offset, file_name):
     counter = 0
     for index in range(len(set_of_ca_sets)):
         next_set = set_of_ca_sets[index]
-        counter += 1       
+        counter += 1
         for ca in range(len(next_set)):
-            PDB_Reader_Writer.write_single_pdb(file=confidence_walk_pdb, type='ATOM', chain='A', node=np.array([(next_set[ca][2] + offset[0]),(next_set[ca][1] + offset[1]),(next_set[ca][0] + offset[2])]), seqnum=counter)
+            PDB_Reader_Writer.write_single_pdb(
+                file=confidence_walk_pdb,
+                type="ATOM",
+                chain="A",
+                node=np.array(
+                    [
+                        (next_set[ca][2] + offset[0]),
+                        (next_set[ca][1] + offset[1]),
+                        (next_set[ca][0] + offset[2]),
+                    ]
+                ),
+                seqnum=counter,
+            )
             counter += 1
     confidence_walk_pdb.close()
 
@@ -440,8 +535,12 @@ def massage_ends(set_of_ca_sets):
         for next_ca_set in set_of_ca_sets:
             if next_ca_set != ca_set:
                 for ca in next_ca_set:
-                    start_dist = distance(ca[2], ca_start[2], ca[1], ca_start[1], ca[0], ca_start[0])
-                    end_dist = distance(ca[2], ca_end[2], ca[1], ca_end[1], ca[0], ca_end[0])
+                    start_dist = distance(
+                        ca[2], ca_start[2], ca[1], ca_start[1], ca[0], ca_start[0]
+                    )
+                    end_dist = distance(
+                        ca[2], ca_end[2], ca[1], ca_end[1], ca[0], ca_end[0]
+                    )
                     if start_dist < 3 and start_dist < switch_start_distance:
                         switch_start_ca = deepcopy(ca)
                         switch_start_distance = start_dist
@@ -460,10 +559,15 @@ def overlay_cas(set_of_ca_sets):
             for next_ca_set in set_of_ca_sets:
                 for next_index, next_ca in enumerate(next_ca_set):
                     if ca != next_ca:
-                        if distance(ca[2], next_ca[2], ca[1], next_ca[1], ca[0], next_ca[0]) < 3:
-                            print('Before: ' + str(next_ca_set[next_index]))
+                        if (
+                            distance(
+                                ca[2], next_ca[2], ca[1], next_ca[1], ca[0], next_ca[0]
+                            )
+                            < 3
+                        ):
+                            print("Before: " + str(next_ca_set[next_index]))
                             next_ca_set[next_index] = ca_set[index]
-                            print('After: ' + str(next_ca_set[next_index]))
+                            print("After: " + str(next_ca_set[next_index]))
 
 
 class Node:
@@ -510,7 +614,7 @@ class Graph:
             if node.get_location() == location:
                 return node
 
-        raise ValueError('No node found with given location')
+        raise ValueError("No node found with given location")
 
     def edge_check(self):
         for node in self.nodes:
@@ -536,9 +640,12 @@ class Graph:
         that have 3 or more edges. It also removes Nodes that are connected
         to other end Nodes (a pair of disconnected Ca atoms)."""
         for node in self.nodes:
-            if node.get_num_edges() == 1: # This is a single connection
+            if node.get_num_edges() == 1:  # This is a single connection
                 neighbor_node = self.get_node(node.get_edges()[0])
-                if neighbor_node.get_num_edges() >= 3 or neighbor_node.get_num_edges() == 1:
+                if (
+                    neighbor_node.get_num_edges() >= 3
+                    or neighbor_node.get_num_edges() == 1
+                ):
                     neighbor_node.edges.remove(node.get_location())
                     node.edges.remove(neighbor_node.get_location())
                 else:
@@ -586,7 +693,7 @@ class Graph:
 
     def remove_tail_loops(self):
         for node in self.nodes:
-            if node.get_num_edges() >= 3: # This is a trinary connection
+            if node.get_num_edges() >= 3:  # This is a trinary connection
                 walk_lists = list()
                 visited = list()
                 visited.append(node.get_location())
@@ -599,7 +706,11 @@ class Graph:
                     for list2 in walk_lists:
                         if done:
                             break
-                        if list1 != list2 and list1[len(list1) - 1] == list2[1] and len(list1) <= 4:
+                        if (
+                            list1 != list2
+                            and list1[len(list1) - 1] == list2[1]
+                            and len(list1) <= 4
+                        ):
                             self.remove_single_loop(list1)
                             done = True
 
@@ -607,7 +718,7 @@ class Graph:
         """This method removes one side of a loop in the graph (a cycle). The
         side of the loop with the least density will be removed."""
         for node in self.nodes:
-            if node.get_num_edges() >= 3: # This is a trinary connection
+            if node.get_num_edges() >= 3:  # This is a trinary connection
                 walk_lists = list()
                 visited = list()
                 visited.append(node.get_location())
@@ -623,7 +734,10 @@ class Graph:
                             break
 
                         # This removed a loop along the backbone that ends in a different trinary node.
-                        if list1 != list2 and list1[len(list1) - 1] == list2[len(list2) - 1]:
+                        if (
+                            list1 != list2
+                            and list1[len(list1) - 1] == list2[len(list2) - 1]
+                        ):
                             density1 = calculate_density(list1, input_image, origin)
                             density2 = calculate_density(list2, input_image, origin)
                             if density1 < density2 and len(list1) <= 4:
@@ -643,7 +757,9 @@ class Graph:
         node2.edges.remove(location_back)
         num_edges = node2.get_num_edges()
         if num_edges == 1:
-            self.remove_pairs(location_front, node2.get_edges()[0]) # Should only be one left
+            self.remove_pairs(
+                location_front, node2.get_edges()[0]
+            )  # Should only be one left
 
     def remove_side_chains(self):
         """This method removes sides chains from the graph
@@ -653,10 +769,10 @@ class Graph:
         more edges. If this is the case then this trace is likely a side chain
         shortcut that should not exist. It is then removed by this method."""
         for node in self.nodes:
-            if node.get_num_edges() >= 3: # This is a trinary connection
+            if node.get_num_edges() >= 3:  # This is a trinary connection
                 visited = list()
                 visited.append(node.get_location())
-                min1 = 111 # Smallest
+                min1 = 111  # Smallest
                 min1_edge = None
                 min2 = 999
                 for edge in node.get_edges():
@@ -667,7 +783,7 @@ class Graph:
                         min1_edge = edge
                     elif value < min2:
                         min2 = value
-                if min1 <= 3 <= min2 - min1: # remove from graph
+                if min1 <= 3 <= min2 - min1:  # remove from graph
                     self.remove_pairs(node.get_location(), min1_edge)
 
     def remove_empty_nodes(self):
@@ -678,7 +794,7 @@ class Graph:
 
     def print_traces(self, sheet_image, helix_image, offset, pdb_file):
         """This method prints all traces in the graph to a single .PDB file"""
-        writer = open(pdb_file, 'w')
+        writer = open(pdb_file, "w")
         already_written = list()
         set_of_traces = list()
         for node in self.nodes:
@@ -706,7 +822,9 @@ class Graph:
                     representation = repr(trace[0]) + repr(trace[len(trace) - 1])
                     if representation not in already_written:
                         set_of_traces.append(trace)
-                        already_written.append(repr(trace[len(trace) - 1]) + repr(trace[0]))
+                        already_written.append(
+                            repr(trace[len(trace) - 1]) + repr(trace[0])
+                        )
 
         helix_traces = list()
         helix_chains = list()
@@ -719,7 +837,11 @@ class Graph:
             cur_helix = None
             cur_sheet = None
             for ca in trace:
-                ca_orig = [int(ca[2] - offset[2]), int(ca[1] - offset[1]), int(ca[0] - offset[0])]
+                ca_orig = [
+                    int(ca[2] - offset[2]),
+                    int(ca[1] - offset[1]),
+                    int(ca[0] - offset[0]),
+                ]
                 if helix_image[ca_orig[0]][ca_orig[1]][ca_orig[2]] > 0:
                     if cur_helix is None:
                         cur_helix = list()
@@ -743,14 +865,20 @@ class Graph:
                         sheet_chains.append(cur_chain)
                         cur_sheet = None
 
-                PDB_Reader_Writer.write_single_pdb(file=writer, type='ATOM', chain='A', node=np.array([ca[0],ca[1],ca[2]]), seqnum=(counter + cur_chain))
+                PDB_Reader_Writer.write_single_pdb(
+                    file=writer,
+                    type="ATOM",
+                    chain="A",
+                    node=np.array([ca[0], ca[1], ca[2]]),
+                    seqnum=(counter + cur_chain),
+                )
                 counter += 1
-            PDB_Reader_Writer.write_single_pdb(file=writer, type='TER')
+            PDB_Reader_Writer.write_single_pdb(file=writer, type="TER")
 
-            if cur_helix is not None: # Fence-Posting
+            if cur_helix is not None:  # Fence-Posting
                 helix_traces.append(cur_helix)
                 helix_chains.append(cur_chain)
-            if cur_sheet is not None: # Fence-Posting
+            if cur_sheet is not None:  # Fence-Posting
                 sheet_traces.append(cur_sheet)
                 sheet_chains.append(cur_chain)
 
@@ -758,13 +886,17 @@ class Graph:
             chain = helix_chains[index]
             start = str(helix_traces[index][0] + chain - 1)
             end = str(helix_traces[index][len(helix_traces[index]) - 1] + chain - 1)
-            PDB_Reader_Writer.write_single_pdb(file=writer, type='HELIX', chain='A', node_from=start, node_to=end)
+            PDB_Reader_Writer.write_single_pdb(
+                file=writer, type="HELIX", chain="A", node_from=start, node_to=end
+            )
 
         for index, trace in enumerate(sheet_traces):
             chain = sheet_chains[index]
             start = str(sheet_traces[index][0] + chain - 1)
             end = str(sheet_traces[index][len(sheet_traces[index]) - 1] + chain - 1)
-            PDB_Reader_Writer.write_single_pdb(file=writer, type='SHEET', chain='A', node_from=start, node_to=end)
+            PDB_Reader_Writer.write_single_pdb(
+                file=writer, type="SHEET", chain="A", node_from=start, node_to=end
+            )
 
         writer.close()
 
@@ -776,12 +908,16 @@ class Graph:
         for node in self.nodes:
             for edge in node.get_edges():
                 node_location = node.get_location()
-                node_location = [int(node_location[2] - origin[2]),
-                                 int(node_location[1] - origin[1]),
-                                 int(node_location[0] - origin[0])] # Reverse it
-                edge_location = [int(edge[2] - origin[2]),
-                                 int(edge[1] - origin[1]),
-                                 int(edge[0] - origin[0])] # Reverse it
+                node_location = [
+                    int(node_location[2] - origin[2]),
+                    int(node_location[1] - origin[1]),
+                    int(node_location[0] - origin[0]),
+                ]  # Reverse it
+                edge_location = [
+                    int(edge[2] - origin[2]),
+                    int(edge[1] - origin[1]),
+                    int(edge[0] - origin[0]),
+                ]  # Reverse it
                 representation = repr(edge_location) + repr(node_location)
                 if representation not in already_written:
                     already_written.append(repr(node_location) + repr(edge_location))
@@ -790,18 +926,38 @@ class Graph:
                     y_step = (node_location[1] - edge_location[1]) / steps
                     z_step = (node_location[2] - edge_location[2]) / steps
                     for index in range(steps + 1):
-                        midpoints.append([edge_location[0] + x_step * index,
-                                          edge_location[1] + y_step * index,
-                                          edge_location[2] + z_step * index])
-                    for z in range(int(edge_location[2]) - 4, int(edge_location[2]) + 4): # 4 is kinda arbitrary here
-                        for y in range(int(edge_location[1]) - 4, int(edge_location[1]) + 4):
-                            for x in range(int(edge_location[0]) - 4, int(edge_location[0]) + 4):
+                        midpoints.append(
+                            [
+                                edge_location[0] + x_step * index,
+                                edge_location[1] + y_step * index,
+                                edge_location[2] + z_step * index,
+                            ]
+                        )
+                    for z in range(
+                        int(edge_location[2]) - 4, int(edge_location[2]) + 4
+                    ):  # 4 is kinda arbitrary here
+                        for y in range(
+                            int(edge_location[1]) - 4, int(edge_location[1]) + 4
+                        ):
+                            for x in range(
+                                int(edge_location[0]) - 4, int(edge_location[0]) + 4
+                            ):
                                 placed = False
                                 for index in range(len(midpoints)):
-                                    if (box_size[2] > z >= 0 <= y < box_size[1] and 0 <= x < box_size[0] and
-                                        distance(z, midpoints[index][2], y, midpoints[index][1], x,
-                                                 midpoints[index][0]) <= 2
-                                        and not placed):
+                                    if (
+                                        box_size[2] > z >= 0 <= y < box_size[1]
+                                        and 0 <= x < box_size[0]
+                                        and distance(
+                                            z,
+                                            midpoints[index][2],
+                                            y,
+                                            midpoints[index][1],
+                                            x,
+                                            midpoints[index][0],
+                                        )
+                                        <= 2
+                                        and not placed
+                                    ):
                                         placed = True
                                         new_backbone[x][y][z] = backbone_image[x][y][z]
         new_backbone = np.array(new_backbone, dtype=np.float32)
@@ -812,7 +968,7 @@ class Graph:
 
         There is no ordering in the graph. It is merely a tool for getting a
         feel for each connection between each Ca atom."""
-        writer = open(pdb_file, 'w')
+        writer = open(pdb_file, "w")
         already_written = list()
         counter = 1
         for node in self.nodes:
@@ -820,8 +976,22 @@ class Graph:
                 node_location = node.get_location()
                 representation = repr(edge) + repr(node_location)
                 if representation not in already_written:
-                    PDB_Reader_Writer.write_single_pdb(file=writer, type='ATOM', chain='A', node=np.array([node_location[0],node_location[1],node_location[2]]), seqnum=counter)
-                    PDB_Reader_Writer.write_single_pdb(file=writer, type='ATOM', chain='A', node=np.array([edge[0],edge[1],edge[2]]), seqnum=(counter + 1))
+                    PDB_Reader_Writer.write_single_pdb(
+                        file=writer,
+                        type="ATOM",
+                        chain="A",
+                        node=np.array(
+                            [node_location[0], node_location[1], node_location[2]]
+                        ),
+                        seqnum=counter,
+                    )
+                    PDB_Reader_Writer.write_single_pdb(
+                        file=writer,
+                        type="ATOM",
+                        chain="A",
+                        node=np.array([edge[0], edge[1], edge[2]]),
+                        seqnum=(counter + 1),
+                    )
                     counter += 3
                     already_written.append(repr(node_location) + repr(edge))
         writer.close()
@@ -837,28 +1007,53 @@ def calculate_density(walk_list, full_image, origin):
     total_density = 0
     number_of_points = 0
     for i in range(len(walk_list) - 1):
-        start_point_trans = [walk_list[i][2] - origin[2],
-                             walk_list[i][1] - origin[1],
-                             walk_list[i][0] - origin[0]]
-        end_point_trans = [walk_list[i + 1][2] - origin[2],
-                           walk_list[i + 1][1] - origin[1],
-                           walk_list[i + 1][0] - origin[0]]
+        start_point_trans = [
+            walk_list[i][2] - origin[2],
+            walk_list[i][1] - origin[1],
+            walk_list[i][0] - origin[0],
+        ]
+        end_point_trans = [
+            walk_list[i + 1][2] - origin[2],
+            walk_list[i + 1][1] - origin[1],
+            walk_list[i + 1][0] - origin[0],
+        ]
         midpoints = list()
         x_step = (end_point_trans[0] - start_point_trans[0]) / steps
         y_step = (end_point_trans[1] - start_point_trans[1]) / steps
         z_step = (end_point_trans[2] - start_point_trans[2]) / steps
         for j in range(steps + 1):
-            midpoints.append([start_point_trans[0] + x_step * j,
-                              start_point_trans[1] + y_step * j,
-                              start_point_trans[2] + z_step * j])
-        for z in range(int(start_point_trans[2]) - 4, int(start_point_trans[2]) + 4): # 4 is kinda arbitrary here
-            for y in range(int(start_point_trans[1]) - 4, int(start_point_trans[1]) + 4):
-                for x in range(int(start_point_trans[0]) - 4, int(start_point_trans[0]) + 4):
+            midpoints.append(
+                [
+                    start_point_trans[0] + x_step * j,
+                    start_point_trans[1] + y_step * j,
+                    start_point_trans[2] + z_step * j,
+                ]
+            )
+        for z in range(
+            int(start_point_trans[2]) - 4, int(start_point_trans[2]) + 4
+        ):  # 4 is kinda arbitrary here
+            for y in range(
+                int(start_point_trans[1]) - 4, int(start_point_trans[1]) + 4
+            ):
+                for x in range(
+                    int(start_point_trans[0]) - 4, int(start_point_trans[0]) + 4
+                ):
                     placed = False
                     for j in range(len(midpoints)):
-                        if (box_size[2] > z >= 0 <= y < box_size[1] and 0 <= x < box_size[0] and
-                                    distance(z, midpoints[j][2], y, midpoints[j][1], x, midpoints[j][0]) <= 1
-                            and not placed):
+                        if (
+                            box_size[2] > z >= 0 <= y < box_size[1]
+                            and 0 <= x < box_size[0]
+                            and distance(
+                                z,
+                                midpoints[j][2],
+                                y,
+                                midpoints[j][1],
+                                x,
+                                midpoints[j][0],
+                            )
+                            <= 1
+                            and not placed
+                        ):
                             placed = True
                             total_density += full_image[x][y][z]
                             number_of_points += 1
@@ -872,14 +1067,14 @@ def make_graph(pdb_file):
     file into a Graph representation for later processing. This allows the
     prediction step to be separated from the post-processing step. They do not
     have to be run concurrently."""
-    pdb_file = open(pdb_file, 'r')
+    pdb_file = open(pdb_file, "r")
     graph = Graph()
     previous_location = None
     cur_index = -1
     for line in pdb_file:
         if line.startswith("ATOM"):
-            index = PDB_Reader_Writer.read_single_pdb_line(type='ATOM INDEX', line=line)
-            x, y, z = PDB_Reader_Writer.read_single_pdb_line(type='ATOM', line=line)
+            index = PDB_Reader_Writer.read_single_pdb_line(type="ATOM INDEX", line=line)
+            x, y, z = PDB_Reader_Writer.read_single_pdb_line(type="ATOM", line=line)
             if index == cur_index + 1:
                 previous = graph.get_node(previous_location)
                 previous.add_edge([x, y, z])
@@ -890,10 +1085,10 @@ def make_graph(pdb_file):
                     new_node = Node([x, y, z])
                     new_node.add_edge(previous.get_location())
                     graph.add_node(new_node)
-            else: # new chain
+            else:  # new chain
                 if not graph.contains_location([x, y, z]):
                     new_node = Node([x, y, z])
                     graph.add_node(new_node)
             cur_index = index
-            previous_location = [x, y, z] # Update for next go-around
+            previous_location = [x, y, z]  # Update for next go-around
     return graph

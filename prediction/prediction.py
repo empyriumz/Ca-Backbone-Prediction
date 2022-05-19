@@ -25,11 +25,20 @@ PREDICTION_PIPELINE = [
     post.build_backbone_trace,
     post.helix_refinement,
     post.remove_duplicates,
-    post.merge_chains
+    post.merge_chains,
 ]
 
 
-def run_predictions(input_path, output_path, thresholds_file, num_skip, check_existing, hidedusts_file, debug, chimera_path):
+def run_predictions(
+    input_path,
+    output_path,
+    thresholds_file,
+    num_skip,
+    check_existing,
+    hidedusts_file,
+    debug,
+    chimera_path,
+):
     """Creates thread pool which will concurrently run the prediction for every
     protein map in the 'input_path'
 
@@ -52,19 +61,42 @@ def run_predictions(input_path, output_path, thresholds_file, num_skip, check_ex
     check_existing: bool
         If set prediction steps are only executed if their results are not
         existing in the output path yet
-		
+
     chimera_path: str
-	    Path to indicate the location of the symbolic link to the chimera
-		binary file
+            Path to indicate the location of the symbolic link to the chimera
+                binary file
     """
     # Create list of parameters for every prediction
-    params_list = [(emdb_id, input_path, output_path, thresholds_file, num_skip, check_existing, hidedusts_file, debug, chimera_path)
-                   for emdb_id in filter(lambda d: os.path.isdir(input_path + d), os.listdir(input_path))]
+    params_list = [
+        (
+            emdb_id,
+            input_path,
+            output_path,
+            thresholds_file,
+            num_skip,
+            check_existing,
+            hidedusts_file,
+            debug,
+            chimera_path,
+        )
+        for emdb_id in filter(
+            lambda d: os.path.isdir(input_path + d), os.listdir(input_path)
+        )
+    ]
 
     start_time = time()
     max_processes_allowed_to_access_tensorflow = 4
-    semaphore = Semaphore(min(min(cpu_count(), len(params_list)), max_processes_allowed_to_access_tensorflow))
-    pool = Pool(min(cpu_count(), len(params_list)), initializer=init_child, initargs=(semaphore,))
+    semaphore = Semaphore(
+        min(
+            min(cpu_count(), len(params_list)),
+            max_processes_allowed_to_access_tensorflow,
+        )
+    )
+    pool = Pool(
+        min(cpu_count(), len(params_list)),
+        initializer=init_child,
+        initargs=(semaphore,),
+    )
     results = pool.map(run_prediction, params_list)
 
     # Filter 'None' results
@@ -75,6 +107,7 @@ def run_predictions(input_path, output_path, thresholds_file, num_skip, check_ex
         evaluator.evaluate(emdb_id, predicted_file, gt_file, execution_time)
 
     evaluator.create_report(output_path, time() - start_time)
+
 
 def init_child(semaphore_):
     global semaphore
@@ -98,13 +131,27 @@ def run_prediction(params):
         file, and execution time respectively
     """
     # Unpack parameters
-    emdb_id, input_path, output_path, thresholds_file, num_skip, check_existing, hidedusts_file, debug, chimera_path = params
-    paths = make_paths(input_path, emdb_id, thresholds_file, hidedusts_file, chimera_path)
+    (
+        emdb_id,
+        input_path,
+        output_path,
+        thresholds_file,
+        num_skip,
+        check_existing,
+        hidedusts_file,
+        debug,
+        chimera_path,
+    ) = params
+    paths = make_paths(
+        input_path, emdb_id, thresholds_file, hidedusts_file, chimera_path
+    )
 
     start_time = time()
     for prediction_step in PREDICTION_PIPELINE:
-        paths['output'] = output_path + emdb_id + '/' + prediction_step.__name__.split('.')[0] + '/'
-        os.makedirs(paths['output'], exist_ok=True)
+        paths["output"] = (
+            output_path + emdb_id + "/" + prediction_step.__name__.split(".")[0] + "/"
+        )
+        os.makedirs(paths["output"], exist_ok=True)
 
         try:
             prediction_step.update_paths(paths)
@@ -118,51 +165,60 @@ def run_prediction(params):
 
             return None
 
-    if not os.path.isfile(paths['fragments_merged']):
+    if not os.path.isfile(paths["fragments_merged"]):
         return None
 
-    if 'fragments_merged' in paths:
-        copyfile(paths['fragments_merged'], output_path + emdb_id + '/' + emdb_id + '.pdb')
+    if "fragments_merged" in paths:
+        copyfile(
+            paths["fragments_merged"], output_path + emdb_id + "/" + emdb_id + ".pdb"
+        )
 
     if debug is False:
         try:
-            os.remove(paths['cleaned_map'])
-            os.remove(paths['normalized_map'])
-            os.remove(paths['loops_confidence'])
-            os.remove(paths['sheet_confidence'])
-            os.remove(paths['helix_confidence'])
-            os.remove(paths['backbone_confidence'])
-            os.remove(paths['ca_confidence'])
-            print('removed preprocessing and CNN files, maps and confidence') # Simple print statement to indicate removal of files
+            os.remove(paths["cleaned_map"])
+            os.remove(paths["normalized_map"])
+            os.remove(paths["loops_confidence"])
+            os.remove(paths["sheet_confidence"])
+            os.remove(paths["helix_confidence"])
+            os.remove(paths["backbone_confidence"])
+            os.remove(paths["ca_confidence"])
+            print(
+                "removed preprocessing and CNN files, maps and confidence"
+            )  # Simple print statement to indicate removal of files
         except:
             pass
 
-    return emdb_id, paths['fragments_merged'], paths['ground_truth'], time() - start_time
+    return (
+        emdb_id,
+        paths["fragments_merged"],
+        paths["ground_truth"],
+        time() - start_time,
+    )
 
 
 def make_paths(input_path, emdb_id, thresholds_file, hidedusts_file, chimera_path):
     """Creates base paths dictionary with density map, ground truth, and
     optionally the thresholds file and chimera symbolic link"""
-    mrc_file = get_file(input_path + emdb_id, ['mrc', 'map'])
-    gt_file = get_file(input_path + emdb_id, ['pdb', 'ent'])
+    mrc_file = get_file(input_path + emdb_id, ["mrc", "map"])
+    gt_file = get_file(input_path + emdb_id, ["pdb", "ent"])
     # Directory that contains paths to all relevant files. This will be
     # updated with every prediction step
     paths = {
-        'input': input_path + emdb_id + '/' + mrc_file,
-        'ground_truth': input_path + emdb_id + '/' + gt_file,
+        "input": input_path + emdb_id + "/" + mrc_file,
+        "ground_truth": input_path + emdb_id + "/" + gt_file,
     }
-	
+
     # Default path for chimera
-    paths['chimera_path'] = "/usr/bin/chimera"
-	
+    paths["chimera_path"] = "/usr/bin/chimera"
+
     if thresholds_file is not None:
-        paths['thresholds_file'] = thresholds_file
+        paths["thresholds_file"] = thresholds_file
 
     if hidedusts_file is not None:
-        paths['hidedusts_file'] = hidedusts_file
-		
+        paths["hidedusts_file"] = hidedusts_file
+
     if chimera_path is not None:
-        paths['chimera_path'] = chimera_path
+        paths["chimera_path"] = chimera_path
 
     return paths
 
@@ -178,4 +234,4 @@ def files_exist(paths):
 
 def get_file(path, allowed_extensions):
     """Returns file in path with allowed extension"""
-    return next(f for f in os.listdir(path) if f.split('.')[-1] in allowed_extensions)
+    return next(f for f in os.listdir(path) if f.split(".")[-1] in allowed_extensions)

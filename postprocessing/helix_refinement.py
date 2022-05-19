@@ -14,20 +14,20 @@ from scipy.optimize import minimize
 from math import pi
 from .pdb_reader_writer import PDB_Reader_Writer, Chain
 
-__author__ = 'Jonas Pfab'
+__author__ = "Jonas Pfab"
 
 
 def update_paths(paths):
-    paths['traces_refined'] = paths['output'] + 'traces_refined.pdb'
+    paths["traces_refined"] = paths["output"] + "traces_refined.pdb"
 
 
 def execute(paths):
     """Coordinates the application of the helix refinement and writes new pdb
     file containing refined backbone structure"""
     reader_writer = PDB_Reader_Writer()
-    chains = reader_writer.read_pdb(paths['traces'])
+    chains = reader_writer.read_pdb(paths["traces"])
     fit_helices(chains)
-    reader_writer.write_pdb(chains, paths['traces_refined'])
+    reader_writer.write_pdb(chains, paths["traces_refined"])
 
 
 def fit_helices(chains):
@@ -50,7 +50,14 @@ def fit_helices(chains):
                 continue
 
             try:
-                helix = Helix(interval_size=9, min_interval_size=3, r=2.11, c=1.149, gap=1.498, flatten=4)
+                helix = Helix(
+                    interval_size=9,
+                    min_interval_size=3,
+                    r=2.11,
+                    c=1.149,
+                    gap=1.498,
+                    flatten=4,
+                )
                 helix.fit(chain.nodes[helix_start:helix_end])
 
                 chain.nodes[helix_start:helix_end] = helix.nodes
@@ -106,7 +113,7 @@ def split_helix_at_node(node, chain, i):
     """
     helix_start, helix_end = chain.helices[i]
     # Split helix into two helices at closest node
-    closest_node, min_distance = -1, float('inf')
+    closest_node, min_distance = -1, float("inf")
     for j in range(helix_start, helix_end):
         distance = get_distance(chain.nodes[j], node)
         if distance < min_distance:
@@ -131,7 +138,9 @@ class CurvedScrewAxisError(Exception):
     """
 
     def __init__(self, node):
-        super(CurvedScrewAxisError, self).__init__('Screw axis is too curved at node: ' + str(node))
+        super(CurvedScrewAxisError, self).__init__(
+            "Screw axis is too curved at node: " + str(node)
+        )
         self.node = node
 
 
@@ -200,9 +209,21 @@ class Helix:
 
         # Find best shift and rotation parameters
         # noinspection PyTypeChecker
-        res = [minimize(evaluate_params, [-self.gap, -2 * pi], bounds=[(-self.gap, self.gap), (None, None)]),
-               minimize(evaluate_params, [0, 0], bounds=[(-self.gap, self.gap), (None, None)]),
-               minimize(evaluate_params, [self.gap, 2 * pi], bounds=[(-self.gap, self.gap), (None, None)])]
+        res = [
+            minimize(
+                evaluate_params,
+                [-self.gap, -2 * pi],
+                bounds=[(-self.gap, self.gap), (None, None)],
+            ),
+            minimize(
+                evaluate_params, [0, 0], bounds=[(-self.gap, self.gap), (None, None)]
+            ),
+            minimize(
+                evaluate_params,
+                [self.gap, 2 * pi],
+                bounds=[(-self.gap, self.gap), (None, None)],
+            ),
+        ]
 
         res.sort(key=lambda params: evaluate_params(params.x))
 
@@ -262,9 +283,13 @@ class Helix:
             x_axis = -1 * normalize(np.cross(z_axis, y_axis))
             rotation_matrix = np.array([x_axis, y_axis, z_axis])
 
-            original_vector = np.array([self.r * sin((self.c * t) - shift + rotation),
-                                        self.r * cos((self.c * t) - shift + rotation),
-                                        0])
+            original_vector = np.array(
+                [
+                    self.r * sin((self.c * t) - shift + rotation),
+                    self.r * cos((self.c * t) - shift + rotation),
+                    0,
+                ]
+            )
 
             rotated_vector = np.dot(original_vector, rotation_matrix)
 
@@ -281,7 +306,9 @@ class Helix:
                 self.nodes = self.nodes[1:]
             if get_distance(original_nodes[-edge_length], self.nodes[-1]) < 3:
                 self.nodes = self.nodes[:-1]
-        self.nodes = original_nodes[:edge_length] + self.nodes + original_nodes[-edge_length:]
+        self.nodes = (
+            original_nodes[:edge_length] + self.nodes + original_nodes[-edge_length:]
+        )
 
 
 class Curve:
@@ -344,7 +371,9 @@ class Curve:
             vector_to_current = get_vector(self.nodes[i - 1], self.nodes[i])
             vector_to_next = get_vector(self.nodes[i], self.nodes[i + 1])
 
-            current_interval[i % interval_size] = angle_between(vector_to_current, vector_to_next)
+            current_interval[i % interval_size] = angle_between(
+                vector_to_current, vector_to_next
+            )
 
             if sum(current_interval) > max_angle:
                 return self.nodes[max(i - int(interval_size / 2), 0)]
@@ -354,7 +383,7 @@ class Curve:
 
 def get_avg_offset(nodes1, nodes2):
     """Calculates the average distance from nodes in nodes1 to the closest
-     nodes in nodes2"""
+    nodes in nodes2"""
     sum_offsets = 0
     for node1 in nodes1:
         closest_distance = -1
@@ -402,7 +431,9 @@ def get_centroid(nodes):
 
 def project_vector(vector1, vector2):
     """Projects vector1 onto vector2"""
-    return (np.dot(vector1, vector2) / np.linalg.norm(vector2)) * (vector2 / np.linalg.norm(vector2))
+    return (np.dot(vector1, vector2) / np.linalg.norm(vector2)) * (
+        vector2 / np.linalg.norm(vector2)
+    )
 
 
 def angle_between(v1, v2):
